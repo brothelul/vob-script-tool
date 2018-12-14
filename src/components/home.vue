@@ -5,13 +5,19 @@
               @click="isShowAside = !isShowAside"
               :class="{open:!isShowAside,close:isShowAside}">
       </button>
-      <h1 class="title">VOB Component</h1>
+      <h1 class="title" @click="loadComponent">VOB Component</h1>
       <ul class="list-project">
         <li class="item-project"
             :class="{current: component.id === currentId}"
             v-for="(component,index) in components"
             @click="loadCode(component.id)">
-          {{index + 1}}-{{component.name}}
+          <el-popover
+            placement="top-start"
+            width="220"
+            trigger="hover">
+            <div style="cursor: pointer">{{component.content}}</div>
+            <div slot="reference" style="padding-left: 8px;">{{component.name}}</div>
+            </el-popover>
           <img src="../assets/image/icon-to.png"
                class="btn-share" alt="添加" @click="addComponent(component)">
         </li>
@@ -33,8 +39,9 @@
         <div class="box-right">
           <label class="text-title">{{currentTitle}}</label>
           <button class="btn-save" @click="popSaveOpen = true">保存</button>
+          <button class="btn-save" @click="componentVisible = true" style="width: auto;">保存为模板</button>
           <button @click="clearConsole()">清空</button>
-          <button @click="run()">运行</button>
+          <button @click="run()">语法检查</button>
         </div>
       </div>
       <div class="box-console">
@@ -49,18 +56,47 @@
     <el-dialog
       title="添加代码块"
       :visible.sync="dialogVisible"
-      width="30%"
-      :before-close="handleClose">
-      <el-form :model="selectedComponent" class="demo-dynamic" label-width="50px">
-        <el-form-item v-for="param in selectedComponent.params" :item="param">
-          {{param.name}}<el-input v-model="param.value"></el-input>
+      width="50%">
+      <el-row>
+        <el-col :span="12"><el-input v-model="scriptResult" type="textarea" autosize></el-input></el-col>
+        <el-col :span="12">
+          <el-form :model="selectedComponent" class="demo-dynamic" label-width="40px">
+            <el-form-item v-for="param in selectedComponent.params" :item="param">
+              <el-row>
+                <el-col :span="6">{{param.name}}</el-col>
+                <el-col :span="18">
+                  <el-input v-model="param.value" type="textarea" autosize></el-input>
+                </el-col>
+              </el-row>
+            </el-form-item>
+            <el-form-item style="text-align: center">
+              <el-button @click="dialogVisible = false" size="small">取消</el-button>
+              <el-button type="primary" @click="sureAddScripts(selectedComponent)" size="small">添加</el-button>
+            </el-form-item>
+          </el-form>
+        </el-col>
+      </el-row>
+    </el-dialog>
+
+    <el-dialog
+      title="模板信息"
+      :visible.sync="componentVisible"
+      width="30%" v-if="editor">
+      <el-form :model="newComponent" class="demo-dynamic" label-width="70px">
+        <el-form-item label="模板名字">
+          <el-input v-model="newComponent.name" autosize></el-input>
         </el-form-item>
-        <el-form-item>
-          <el-button @click="cancelAddScripts">取 消</el-button>
-          <el-button type="primary" @click="sureAddScripts(selectedComponent)">确 定</el-button>
+        <el-form-item label="模板描述">
+          <el-input v-model="newComponent.description" type="textarea" autosize></el-input>
+        </el-form-item>
+        <el-form-item label="模板内容">
+          <el-input v-model="editor.getValue()" type="textarea" :disabled="true" autosize></el-input>
+        </el-form-item>
+        <el-form-item style="text-align: center">
+          <el-button @click="componentVisible = false" size="small">取消</el-button>
+          <el-button type="primary" @click="saveAsComponent(newComponent)" size="small">添加</el-button>
         </el-form-item>
       </el-form>
-  </span>
     </el-dialog>
   </div>
 </template>
@@ -89,11 +125,25 @@
         currentTitle: '',
         isShowAside: true,
         popSaveOpen: false,
-        alertText: '',
         shareCodeId: '',
         dialogVisible: false,
+        componentVisible: false,
         selectedComponent: {params: []},
-        scriptResult: '//!js:\n'
+        newComponent: {name: null, description: null}
+      }
+    },
+    computed: {
+      scriptResult: function () {
+        const selectedComponent = this.selectedComponent
+        let content = selectedComponent.content
+        let scriptResult = content
+        if (content) {
+          selectedComponent.params.map(param => {
+            let reg = new RegExp('#{' + param.name + '}', 'g')
+            scriptResult = scriptResult.replace(reg, param.value)
+          })
+        }
+        return scriptResult + '\n'
       }
     },
     mounted: function () {
@@ -111,18 +161,19 @@
       window.onmousemove = this.ctrlMouseMove
       window.onmouseup = this.ctrlMouseUp
       document.addEventListener('mouseleave', this.mouseLeaveWindow)
-
-      let _this = this
-      this.$store.dispatch('listComponent').then(function (data) {
-        _this.components = data.components
-      })
-
-      const cid = this.$route.query.Cid
-      if (cid) {
-        this.loadCode(cid)
-      }
+      this.loadComponent()
     },
     methods: {
+      loadComponent: function () {
+        let _this = this
+        let loading = this.$loading({target: 'aside'})
+        this.$store.dispatch('listComponent').then(function (data) {
+          _this.components = data
+          loading.close()
+        }).then(function () {
+          loading.close()
+        })
+      },
       mouseLeaveWindow: function (e) {
         this.preY = 0
       },
@@ -154,7 +205,13 @@
         this.preY = 0
       },
       run: function () {
-        eval(this.editor.getValue())
+        let console
+        try {
+          console = eval(this.editor.getValue())
+        } catch (err) {
+          console = err.name + ' at line number ' + err.lineNumber + ' cause by: ' + err.message
+        }
+        this.log(console)
       },
       log: function (text) {
         this.dataConsole.unshift({
@@ -167,49 +224,22 @@
         this.dataConsole = []
       },
       submit: function (data) {
-        const vm = this
-        data.content = this.editor.getValue()
-        this.$store.dispatch('add', data).then(function (res) {
-          if (res.success) {
-            vm.alertText = '提交成功!'
-          } else {
-            vm.alertText = res.msg
-          }
-        })
       },
       loadCode: function (id) {
-        const vm = this
-        vm.$store.dispatch('codeDetail', id).then(function (data) {
-          if (data.success) {
-            vm.currentId = id
-            vm.currentTitle = data.title
-            vm.editor.setValue(data.content)
-          }
-        })
       },
-      add: function () {
-        this.currentTitle = ''
-        this.editor.setValue('')
-        this.clearConsole()
+      saveAsComponent: function (newComponent) {
+        let content = this.editor.getValue()
+        this.$store.dispatch('addComponent', {...newComponent, content: content})
+        this.componentVisible = false
       },
       addComponent: function (component) {
         this.dialogVisible = true
         this.selectedComponent = component
       },
       sureAddScripts: function (component) {
+        console.log(component.params[0].value)
         this.editor.replaceSelection(this.scriptResult)
-      },
-      alertClose: function () {
-        this.alertText = ''
-        this.currentId = ''
-        this.currentTitle = ''
-        this.editor.setValue('')
-      },
-      share: function (id) {
-        this.shareCodeId = id
-      },
-      shareClose: function () {
-        this.shareCodeId = ''
+        this.dialogVisible = false
       }
     }
   }
@@ -269,6 +299,7 @@
     text-align: center;
     font-size: 20px;
     font-weight: bolder;
+    cursor: pointer;
   }
   .list-project, .item-project {
     list-style-type: none;
@@ -458,6 +489,3 @@
     }
   }
 </style>
-
-
-<!--webpack练习 https://juejin.im/post/58edcbda44d904005774cfb1-->

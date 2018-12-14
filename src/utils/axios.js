@@ -10,7 +10,7 @@ import {Notification} from 'element-ui'
 // 添加请求拦截器
 axios.interceptors.request.use(function (config) {
   // 在发送请求之前做些什么
-  config.url = 'http://rap2api.taobao.org/app/mock/121135' + config.url
+  config.url = 'http://localhost:8888' + config.url
   return config
 }, function (error) {
   // 对请求错误做些什么

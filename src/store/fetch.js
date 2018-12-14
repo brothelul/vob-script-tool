@@ -1,8 +1,9 @@
 import axios from '../utils/axios'
 
 export function post (url, form) {
+	let data = JSON.stringify(form)
 	return new Promise((resolve, reject) => {
-		axios.post(url, form).then(response => {
+		axios.post(url, data).then(response => {
 			if (response.status === 200) {
 				resolve(response.data.data)
 			} else {
