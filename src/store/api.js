@@ -3,20 +3,20 @@ import { post, get } from './fetch.js'
 const api = {
   component: '/public/api/component',
   listComponent: '/public/api/components',
-  codeDetail: '/codeDetail',
+  listObjs: '/public/api/vobObjs',
   getVerify: '/verify'
 }
 
 export default {
   actions: {
-    addComponent: ({ state }, data) => {
+    addComponent: ({state}, data) => {
       return post(api.component, data)
     },
     listComponent: ( ) => {
       return get(api.listComponent)
     },
-    codeDetail: ({ state }, id) => {
-      return get(api.codeDetail, { id })
+    listObjs: () => {
+      return get(api.listObjs)
     },
     getVerify: ( ) => {
       return get(api.getVerify)

@@ -27,13 +27,16 @@ axios.interceptors.response.use(function (response) {
   // 对响应数据做点什么
   return response
 }, function (error) {
+  let message = error.response.data ? error.response.data.message : error.message
   // 对响应错误做点什么
   Notification.error({
     title: '请求失败',
     duration: 0,
-    message: error.message
+    message: message
   })
   return Promise.reject(error)
 })
+
+axios.defaults.headers.post['Content-Type'] = 'application/json'
 
 export default axios

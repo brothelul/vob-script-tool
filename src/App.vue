@@ -17,7 +17,7 @@ export default {
     height: 100%;
   }
   #app {
-    font-family: Helvetica, Arial, sans-serif;
+    font-family: Consolas, Helvetica, Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     color: #2c3e50;

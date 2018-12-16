@@ -45,6 +45,7 @@
 
     var tprop = token;
     // If it is a property, find out what it is a property of.
+    console.log('tprop.type=', tprop.type)
     while (tprop.type == "property") {
       tprop = getToken(editor, Pos(cur.line, tprop.start));
       if (tprop.string != ".") return;
@@ -108,25 +109,41 @@
 
   function getCompletions(token, context, keywords, options) {
     var found = [], start = token.string, global = options && options.globalScope || window;
+
     function maybeAdd(str) {
       if (str.lastIndexOf(start, 0) == 0 && !arrayContains(found, str)) found.push(str);
     }
-    function gatherCompletions(obj) {
+    function gatherCompletions(obj, isVob = false) {
       if (typeof obj == "string") forEach(stringProps, maybeAdd);
-      else if (obj instanceof Array) forEach(arrayProps, maybeAdd);
+      else if (obj instanceof Array) {
+        if (isVob) {
+          forEach(obj, maybeAdd)
+        } else {
+          forEach(arrayProps, maybeAdd)
+        }
+      }
       else if (obj instanceof Function) forEach(funcProps, maybeAdd);
-      forAllProps(obj, maybeAdd)
+      if (!isVob) forAllProps(obj, maybeAdd)
     }
 
     if (context && context.length) {
       // If this is a property, see if it belongs to some object we can
       // find in the current environment.
-      var obj = context.pop(), base;
+      var obj = context.pop(), base, isVob=false;
       if (obj.type && obj.type.indexOf("variable") === 0) {
         if (options && options.additionalContext)
           base = options.additionalContext[obj.string];
         if (!options || options.useGlobalScope !== false)
           base = base || global[obj.string];
+        // for vob
+        if (options && options.vobContext){
+          for (var i =0; i< options.vobContext.length; i++) {
+            if (options.vobContext[i].obj === obj.string) {
+              base = options.vobContext[i].methods
+              isVob = true;
+            }
+          }
+        }
       } else if (obj.type == "string") {
         base = "";
       } else if (obj.type == "atom") {
@@ -140,12 +157,16 @@
       }
       while (base != null && context.length)
         base = base[context.pop().string];
-      if (base != null) gatherCompletions(base);
+      if (base != null) gatherCompletions(base, isVob);
     } else {
       // If not, just look in the global object and any local scope
       // (reading into JS mode internals to get at the local and global variables)
       for (var v = token.state.localVars; v; v = v.next) maybeAdd(v.name);
       for (var v = token.state.globalVars; v; v = v.next) maybeAdd(v.name);
+      // for vob
+      if (options && options.vobContext){
+        for (var i =0; i< options.vobContext.length; i++) maybeAdd(options.vobContext[i].obj)
+      }
       if (!options || options.useGlobalScope !== false)
         gatherCompletions(global);
       forEach(keywords, maybeAdd);

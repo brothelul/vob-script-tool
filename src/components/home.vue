@@ -22,7 +22,7 @@
                class="btn-share" alt="添加" @click="addComponent(component)">
         </li>
       </ul>
-      <button class="btn-add" @click="add()"></button>
+      <button class="btn-add" @click="loadComponent"></button>
     </aside>
     <div class="box-editor">
       <div class="box-code"
@@ -31,7 +31,7 @@
           spellcheck="false"
           autocapitalize="none"
           autocorrect="off"
-          ref="codeEditor">
+          ref="codeEditor" style="background-color: #0C1021;height: 1px; width: 1px;">
         </textarea>
       </div>
       <div class="box-control">
@@ -58,7 +58,7 @@
       :visible.sync="dialogVisible"
       width="50%">
       <el-row>
-        <el-col :span="12"><el-input v-model="scriptResult" type="textarea" autosize></el-input></el-col>
+        <el-col :span="12"><el-input v-model="scriptResult" type="textarea" :readonly="true" autosize></el-input></el-col>
         <el-col :span="12">
           <el-form :model="selectedComponent" class="demo-dynamic" label-width="40px">
             <el-form-item v-for="param in selectedComponent.params" :item="param">
@@ -79,18 +79,18 @@
     </el-dialog>
 
     <el-dialog
-      title="模板信息"
+      title="模板信息[#{XXX}元素为可替换变量]"
       :visible.sync="componentVisible"
       width="30%" v-if="editor">
-      <el-form :model="newComponent" class="demo-dynamic" label-width="70px">
-        <el-form-item label="模板名字">
-          <el-input v-model="newComponent.name" autosize></el-input>
+      <el-form :model="newComponent" ref="newComponent" class="demo-dynamic" label-width="80px">
+        <el-form-item label="模板名字" :rules="[{required: true, message: '模板名不能为空',trigger: 'blur'}]">
+          <el-input v-model="newComponent.name"></el-input>
         </el-form-item>
         <el-form-item label="模板描述">
           <el-input v-model="newComponent.description" type="textarea" autosize></el-input>
         </el-form-item>
-        <el-form-item label="模板内容">
-          <el-input v-model="editor.getValue()" type="textarea" :disabled="true" autosize></el-input>
+        <el-form-item label="模板内容" :rules="[{required: true, message: '模板内容不能为空'}]">
+          <el-input v-model="editor.getValue()" type="textarea" :readonly="true" autosize></el-input>
         </el-form-item>
         <el-form-item style="text-align: center">
           <el-button @click="componentVisible = false" size="small">取消</el-button>
@@ -104,6 +104,9 @@
 <script>
   import CodeMirror from '../assets/CodeMirror/lib/codemirror'
   import '../assets/CodeMirror/mode/javascript'
+  import '../assets/CodeMirror/addon/hint/show-hint'
+  import '../assets/CodeMirror/addon/hint/show-hint.css'
+  import '../assets/CodeMirror/addon/hint/javascript-hint'
   import popSave from './popSave.vue'
   import popAlert from './popAlert.vue'
   import popShare from './popShare.vue'
@@ -139,23 +142,22 @@
         let scriptResult = content
         if (content) {
           selectedComponent.params.map(param => {
-            let reg = new RegExp('#{' + param.name + '}', 'g')
-            scriptResult = scriptResult.replace(reg, param.value)
+            let reg = new RegExp('#{\\s{0,}' + param.name + '\\s{0,}}', 'g')
+            let value = param.value
+            if (value != null && value.trim().length > 0) {
+              scriptResult = scriptResult.replace(reg, param.value)
+            }
           })
         }
         return scriptResult + '\n'
       }
     },
     mounted: function () {
-      this.editor = CodeMirror.fromTextArea(this.$refs.codeEditor, {
-        mode: 'text/javascript',
-        lineNumbers: true,
-        lineWrapping: true,
-        indentUnit: 4,  // 缩进
-        foldGutter: true,
-        styleActiveLine: true,
-        theme: 'blackboard',
-        gutters: ['CodeMirror-linenumbers', 'CodeMirror-foldgutter']
+      let _this = this
+      this.$store.dispatch('listObjs').then(function (response) {
+        _this.createEditor(response)
+      }).catch(function () {
+        _this.createEditor([])
       })
       window.onmousedown = this.ctrlMouseDown
       window.onmousemove = this.ctrlMouseMove
@@ -164,13 +166,32 @@
       this.loadComponent()
     },
     methods: {
+      createEditor: function (hintOptions) {
+        var _this = this
+        this.editor = CodeMirror.fromTextArea(this.$refs.codeEditor, {
+          mode: 'text/javascript',
+          lineNumbers: true,
+          lineWrapping: true,
+          indentUnit: 4,  // 缩进
+          foldGutter: true,
+          styleActiveLine: true,
+          cursorHeight: 0.85, // 光标高度
+          extraKeys: {'Ctrl': 'autocomplete'}, // 输入s然后ctrl就可以弹出选择项
+          theme: 'blackboard',
+          hintOptions: {vobContext: hintOptions},
+          gutters: ['CodeMirror-linenumbers', 'CodeMirror-foldgutter']
+        })
+        this.editor.on('keyPress', function () {
+          _this.editor.showHint({}, {}, {vobContext: [{obj: '$api'}]})
+        })
+      },
       loadComponent: function () {
         let _this = this
         let loading = this.$loading({target: 'aside'})
         this.$store.dispatch('listComponent').then(function (data) {
           _this.components = data
           loading.close()
-        }).then(function () {
+        }).catch(function () {
           loading.close()
         })
       },
@@ -214,6 +235,9 @@
         this.log(console)
       },
       log: function (text) {
+        if (!text) {
+          text = 'success'
+        }
         this.dataConsole.unshift({
           type: 'log',
           time: parseInt(Date.now() / 1000),
@@ -228,16 +252,23 @@
       loadCode: function (id) {
       },
       saveAsComponent: function (newComponent) {
-        let content = this.editor.getValue()
-        this.$store.dispatch('addComponent', {...newComponent, content: content})
-        this.componentVisible = false
+        let _this = this
+        let content = _this.editor.getValue()
+        _this.$store.dispatch('addComponent', {...newComponent, content: content}).then(function () {
+          _this.componentVisible = false
+          _this.loadComponent()
+        })
       },
       addComponent: function (component) {
+        // 如果不需要传入参数那么直接添加
+        if (component.params == null || component.params.length === 0) {
+          this.editor.replaceSelection(component.content + '\n')
+          return
+        }
         this.dialogVisible = true
         this.selectedComponent = component
       },
       sureAddScripts: function (component) {
-        console.log(component.params[0].value)
         this.editor.replaceSelection(this.scriptResult)
         this.dialogVisible = false
       }
@@ -300,8 +331,17 @@
     font-size: 20px;
     font-weight: bolder;
     cursor: pointer;
+    margin-top: 0px;
   }
-  .list-project, .item-project {
+  .list-project {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+    overflow: auto;
+    height: 800px;
+  }
+
+  .item-project {
     list-style-type: none;
     padding: 0;
     margin: 0;
@@ -320,6 +360,14 @@
   .item-project:hover,
   .item-project.current {
     background-color: #222;
+  }
+  .btn-params{
+    position: absolute;
+    display: block;
+    left: 0;
+    top: 0;
+    padding: 10px;
+    height: 20px;
   }
   .btn-share {
     position: absolute;
@@ -348,7 +396,7 @@
     border: none;
     border-top: 1.5px solid #222;
     background-color: transparent;
-    background-image: url('../assets/image/icon-add.png');
+    background-image: url('../assets/image/icon-refresh.png');
     background-repeat: no-repeat;
     background-size: 26px;
     background-position: center;
