@@ -15,8 +15,10 @@
             placement="top-start"
             width="220"
             trigger="hover">
-            <div style="cursor: pointer">{{component.content}}</div>
-            <div slot="reference" style="padding-left: 8px;">{{component.name}}</div>
+            <div style="cursor: pointer">
+              <div>{{component.content}}</div>
+            </div>
+            <div slot="reference" style="padding-left: 8px; line-height: 1;">{{component.name}}</div>
             </el-popover>
           <img src="../assets/image/icon-to.png"
                class="btn-share" alt="添加" @click="addComponent(component)">
@@ -348,7 +350,7 @@
   }
   .item-project {
     position: relative;
-    padding: 0 10px;
+    padding: 0 8px;
     color: #999;
     word-wrap: break-word;
     word-break: break-all;
@@ -356,6 +358,8 @@
     font-size: 16px;
     height: 40px;
     line-height: 40px;
+    display: flex;
+    align-items: center;
   }
   .item-project:hover,
   .item-project.current {
