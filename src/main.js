@@ -7,11 +7,16 @@ import store from './store/'
 import CommUtil from './plugin/CommonUtil'
 import ElementUI from 'element-ui'
 import 'element-ui/lib/theme-chalk/index.css'
+import VueClipboard from 'vue-clipboard2'
 
 Vue.config.productionTip = false
 
 Vue.use(CommUtil)
 Vue.use(ElementUI)
+Vue.use(VueClipboard)
+
+// 定义全局参数
+Vue.prototype.window = window
 
 // axios.defaults.baseURL = 'http://code.smallcfj.club/api'
 

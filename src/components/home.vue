@@ -1,4 +1,4 @@
-<template>
+<template xmlns:>
   <div class="container-home" :class="{noAside:!isShowAside}">
     <aside>
       <button class="btn-toggle"
@@ -40,7 +40,7 @@
         <a class="link-site" href="http://code.smallcfj.club" target="_blank">Javascript Box</a>
         <div class="box-right">
           <label class="text-title">{{currentTitle}}</label>
-          <button class="btn-save" @click="popSaveOpen = true">保存</button>
+          <button class="btn-save" v-clipboard:copy="scripts" v-clipboard:success="onCopy" v-clipboard:error="onError">复制代码</button>
           <button class="btn-save" @click="componentVisible = true" style="width: auto;">保存为模板</button>
           <button @click="clearConsole()">清空</button>
           <button @click="run()">语法检查</button>
@@ -112,7 +112,6 @@
   import popSave from './popSave.vue'
   import popAlert from './popAlert.vue'
   import popShare from './popShare.vue'
-
   export default {
     components: {
       'pop-save': popSave,
@@ -152,6 +151,9 @@
           })
         }
         return scriptResult + '\n'
+      },
+      scripts: function () {
+        return this.editor ? this.editor.getValue().trim() : ''
       }
     },
     mounted: function () {
@@ -273,6 +275,15 @@
       sureAddScripts: function (component) {
         this.editor.replaceSelection(this.scriptResult)
         this.dialogVisible = false
+      },
+      onError: function () {
+        this.$message.error('复制失败，请手动复制')
+      },
+      onCopy: function () {
+        this.$message({
+          message: '复制成功',
+          type: 'success'
+        })
       }
     }
   }
